@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17243b">
+<title>Menswear Billing & Stock</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--navy:#17243b;--blue:#2855d9;--bg:#f3f5f9;--card:#fff;--ink:#172033;--muted:#657187;--line:#e0e5ed;--red:#b42318;--green:#147747}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:var(--navy);color:white;padding:18px 16px 16px;position:sticky;top:0;z-index:4}header h1{font-size:20px;margin:0 0 4px}header p{margin:0;color:#d7dfec;font-size:12px}
+nav{display:flex;gap:7px;padding:9px;background:white;overflow:auto;position:sticky;top:69px;z-index:3;border-bottom:1px solid var(--line)}nav button{border:0;border-radius:9px;padding:10px 12px;background:#edf1f7;color:#25324a;font-weight:700;white-space:nowrap}nav button.active{background:var(--blue);color:#fff}
+main{max-width:920px;margin:auto;padding:13px}.panel{display:none}.panel.active{display:block}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px #15223808}
+h2{font-size:17px;margin:0 0 13px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{min-width:0;margin-bottom:10px}label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input,select,textarea{width:100%;min-width:0;border:1px solid #ccd4e1;border-radius:9px;padding:11px;background:#fff;color:var(--ink);font:inherit}button{cursor:pointer;font:inherit}button.primary,button.secondary,button.danger{border:0;border-radius:9px;padding:11px 13px;font-weight:700}button.primary{background:var(--blue);color:white}button.secondary{background:#edf1f7;color:#25324a}button.danger{background:#fff0ef;color:var(--red)}.full{width:100%}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#f7f9fc;border:1px solid var(--line);border-radius:11px;padding:12px}.stat span{display:block;color:var(--muted);font-size:11px}.stat strong{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.small{font-size:12px;color:var(--muted)}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:11px;color:var(--muted)}.empty{text-align:center;color:var(--muted);padding:22px 8px}.total{font-size:20px;font-weight:800}.tag{font-size:11px;padding:3px 6px;border-radius:6px;background:#e8f7ef;color:var(--green)}
+@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:span 2}.grid{grid-template-columns:1fr}header{padding-top:14px}nav{top:65px}}
+.qrbox{display:none;margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:12px;text-align:center;background:#fff}.qrbox.show{display:block}.qrimage{display:flex;justify-content:center;margin:12px auto}.qrimage img,.qrimage canvas{max-width:100%;height:auto}
+</style>
+<link rel="manifest" href="./manifest.webmanifest">
+<script>
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(err => console.log("Offline setup:", err)));
+}
+</script>
+</head>
+<body>
+<header><h1 id="headerShop">Menswear Shop</h1><p>Billing · GST estimate · Stock updates · PDF bills</p></header>
+<nav>
+<button class="active" data-tab="home">Overview</button><button data-tab="bill">New Bill</button><button data-tab="stock">Stock</button><button data-tab="history">Bills</button><button data-tab="settings">Settings</button>
+</nav>
+<main>
+<section id="home" class="panel active">
+<div class="card"><h2>Shop overview</h2><div class="stats"><div class="stat"><span>Stock variants</span><strong id="sVariants">0</strong></div><div class="stat"><span>Units in stock</span><strong id="sUnits">0</strong></div><div class="stat"><span>Today's sales</span><strong id="sSales">₹0.00</strong></div></div></div>
+<div class="card"><h2>Low stock (5 or fewer)</h2><div id="lowStock"></div></div>
+<div class="grid"><button class="primary" onclick="go('bill')">Create bill</button><button class="secondary" onclick="go('stock')">Update stock</button></div>
+<p class="small">Your records are saved in this browser on this device. Download backups regularly.</p>
+</section>
+<section id="bill" class="panel">
+<div class="card"><h2>Create bill</h2>
+<div class="grid"><div class="field"><label>Customer name (optional)</label><input id="customer" placeholder="Customer name"></div><div class="field"><label>Payment method</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Other</option></select></div></div>
+<div class="field"><label>Choose product / size / colour</label><select id="productSelect"></select></div>
+<div class="grid"><div class="field"><label>Quantity</label><input id="billQty" type="number" min="1" step="1" value="1"></div><div class="field"><label>Discount (₹)</label><input id="discount" type="number" min="0" step=".01" value="0"></div></div>
+<button class="primary full" onclick="addCart()">Add item to bill</button><div id="cartArea" style="margin-top:12px"></div>
+<div class="row" style="margin-top:12px"><span>Subtotal</span><strong id="subtotal">₹0.00</strong></div>
+<div class="row" style="margin-top:7px"><span>Estimated GST</span><strong id="gstAmount">₹0.00</strong></div>
+<div class="row" style="margin-top:7px"><span>Discount</span><strong id="discountAmount">₹0.00</strong></div>
+<div class="row" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><span class="total">Total</span><span class="total" id="total">₹0.00</span></div>
+<button class="secondary full" style="margin-top:14px" onclick="showUpiQr()">Show UPI payment QR</button>
+<div id="upiQrBox" class="qrbox"><h2 style="margin-bottom:6px">Scan to pay via UPI</h2><div id="upiQrImage" class="qrimage"></div><div id="upiQrDetails" class="small"></div><p class="small">Check the payee name and amount in your UPI app before paying. This QR does not confirm payment.</p><button class="secondary" onclick="hideUpiQr()">Hide QR</button></div>
+<button class="primary full" style="margin-top:10px" onclick="saveBill()">Save bill & download PDF</button>
+<p class="small">This is a basic billing tool, not GST portal software. Confirm applicable tax rates and invoice requirements before using bills as official tax invoices.</p>
+</div></section>
+<section id="stock" class="panel">
+<div class="card"><h2>Add new product / size / colour</h2><div class="grid">
+<div class="field"><label>Product name *</label><input id="pName" placeholder="Formal shirt"></div><div class="field"><label>Category</label><select id="pCategory"><option>Shirt</option><option>T-shirt</option><option>Jeans</option><option>Trousers</option><option>Shorts</option><option>Jacket</option><option>Other</option></select></div>
+<div class="field"><label>Brand</label><input id="pBrand" placeholder="Brand name"></div><div class="field"><label>Size</label><select id="pSize"><option>XS</option><option>S</option><option selected>M</option><option>L</option><option>XL</option><option>XXL</option><option>XXXL</option><option>Free size</option></select></div>
+<div class="field"><label>Colour</label><input id="pColour" placeholder="Black"></div><div class="field"><label>SKU / barcode (optional)</label><input id="pSku" placeholder="SH-BLK-M"></div>
+<div class="field"><label>Cost price (₹) *</label><input id="pCost" type="number" min="0" step=".01" placeholder="300"></div><div class="field"><label>Selling price (₹) *</label><input id="pPrice" type="number" min="0" step=".01" placeholder="599"></div>
+<div class="field"><label>Quantity to add *</label><input id="pQty" type="number" min="0" step="1" placeholder="10"></div><div class="field"><label>GST rate (%)</label><select id="pGst"><option value="0">0%</option><option value="5">5%</option><option value="12" selected>12%</option><option value="18">18%</option><option value="28">28%</option></select></div>
+</div><button class="primary full" onclick="saveStock()">Save / update stock</button><p class="small">If the same product, brand, size and colour already exists, quantity is added to existing stock.</p></div>
+<div class="card"><div class="row"><h2 style="margin:0">Current stock</h2><button class="secondary" onclick="csvStock()">Export CSV</button></div><div class="field" style="margin-top:12px"><input id="searchStock" placeholder="Search stock…" oninput="renderStock()"></div><div id="stockTable" class="tablewrap"></div></div>
+</section>
+<section id="history" class="panel"><div class="card"><div class="row"><h2 style="margin:0">Saved bills</h2><button class="secondary" onclick="csvBills()">Export CSV</button></div><div id="billHistory" class="tablewrap" style="margin-top:12px"></div></div></section>
+<section id="settings" class="panel"><div class="card"><h2>Shop settings</h2>
+<div class="field"><label>Shop name</label><input id="shopName" value="Menswear Shop"></div><div class="field"><label>Address (optional)</label><textarea id="shopAddress" rows="2" placeholder="Shop address"></textarea></div>
+<div class="field"><label>Phone (optional)</label><input id="shopPhone" placeholder="Phone number"></div><div class="field"><label>GSTIN (optional)</label><input id="shopGstin" placeholder="GSTIN"></div>
+<div class="field"><label>UPI ID / VPA (required for QR)</label><input id="upiId" placeholder="yourname@bank"></div><div class="field"><label>UPI payee name</label><input id="upiName" placeholder="Shop name as shown in UPI app"></div>
+<button class="primary full" onclick="saveSettings()">Save settings</button><div style="height:10px"></div><button class="secondary full" onclick="backup()">Download data backup (JSON)</button>
+<div style="height:8px"></div><label class="secondary full" style="display:block;text-align:center;padding:11px;border-radius:9px;cursor:pointer"><input type="file" accept=".json,application/json" style="display:none" onchange="restore(event)">Restore backup JSON</label>
+<p class="small">Data stays in this browser on this device. Clearing website data may delete records. Back up regularly. GSTIN is not validated against the GST portal.</p><button class="danger full" onclick="wipe()">Delete all data</button>
+</div></section>
+</main>
+<script>
+'use strict';
+const KEY='menswear_webapp_v1';
+let db={products:[],bills:[],settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:''}},cart=[];
+const $=id=>document.getElementById(id);
+const cash=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function load(){
+ try{const saved=JSON.parse(localStorage.getItem(KEY));if(saved)db={...db,...saved,products:Array.isArray(saved.products)?saved.products:[],bills:Array.isArray(saved.bills)?saved.bills:[],settings:{...db.settings,...(saved.settings||{})}}}catch(e){console.warn('Could not load saved data',e)}
+ $('shopName').value=db.settings.shopName||'Menswear Shop';$('shopAddress').value=db.settings.address||'';$('shopPhone').value=db.settings.phone||'';$('shopGstin').value=db.settings.gstin||'';$('upiId').value=db.settings.upiId||'';$('upiName').value=db.settings.upiName||'';renderAll()
+}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));renderAll()}catch(e){alert('Could not save data. Check browser storage space/settings.');console.error(e)}}
+function go(id){document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));if(id==='bill')renderSelect();window.scrollTo({top:0,behavior:'auto'})}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+function desc(p){return [p.name,p.brand,p.size,p.colour].filter(Boolean).join(' · ')}
+function renderAll(){renderHome();renderStock();renderSelect();renderCart();renderBills()}
+function renderHome(){
+ $('headerShop').textContent=db.settings.shopName||'Menswear Shop';$('sVariants').textContent=db.products.length;$('sUnits').textContent=db.products.reduce((n,p)=>n+(Number(p.qty)||0),0);
+ let today=new Date().toLocaleDateString();$('sSales').textContent=cash(db.bills.filter(b=>new Date(b.date).toLocaleDateString()===today).reduce((n,b)=>n+(Number(b.total)||0),0));
+ let low=db.products.filter(p=>Number(p.qty)<=5);$('lowStock').innerHTML=low.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th></tr>'+low.map(p=>`<tr><td>${esc(desc(p))}</td><td>${Number(p.qty)||0}</td></tr>`).join('')+'</table></div>':'<div class="empty">No low-stock items.</div>'
+}
+function saveStock(){
+ let name=$('pName').value.trim(),cost=Number($('pCost').value),price=Number($('pPrice').value),qty=Number($('pQty').value);
+ if(!name||$('pCost').value===''||$('pPrice').value===''||$('pQty').value===''||!Number.isFinite(cost)||!Number.isFinite(price)||cost<0||price<0||qty<0||!Number.isInteger(qty)){alert('Enter product name, valid prices and whole-number quantity.');return}
+ let p={id:Date.now().toString(),name,category:$('pCategory').value,brand:$('pBrand').value.trim(),size:$('pSize').value,colour:$('pColour').value.trim(),sku:$('pSku').value.trim(),cost,price,qty,gst:Number($('pGst').value)};
+ let old=db.products.find(x=>x.name.toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase()&&x.size===p.size&&String(x.colour||'').toLowerCase()===p.colour.toLowerCase());
+ if(old){old.qty=Number(old.qty)+qty;old.cost=cost;old.price=price;old.gst=p.gst;if(p.sku)old.sku=p.sku}else db.products.push(p);
+ ['pName','pBrand','pColour','pSku','pCost','pPrice','pQty'].forEach(id=>$(id).value='');alert('Stock updated.');persist()
+}
+function renderStock(){
+ if(!$('stockTable'))return;let q=($('searchStock')?.value||'').toLowerCase(),list=db.products.filter(p=>(desc(p)+' '+(p.sku||'')).toLowerCase().includes(q));
+ $('stockTable').innerHTML=list.length?'<table><tr><th>Product</th><th>Size/colour</th><th>Price</th><th>Qty</th><th>Action</th></tr>'+list.map(p=>`<tr><td><b>${esc(p.name)}</b><br><span class="small">${esc(p.brand||p.category||'')}${p.sku?' · '+esc(p.sku):''}</span></td><td>${esc(p.size||'')} / ${esc(p.colour||'—')}</td><td>${cash(p.price)}<br><span class="small">GST ${Number(p.gst)||0}%</span></td><td>${Number(p.qty)||0}</td><td><button class="secondary" onclick="changeQty('${p.id}')">± Qty</button><br><button class="secondary" style="margin-top:5px" onclick="editPrice('${p.id}')">Edit price</button><br><button class="danger" style="margin-top:5px" onclick="delProduct('${p.id}')">Delete</button></td></tr>`).join('')+'</table>':'<div class="empty">No stock added yet.</div>'
+}
+function changeQty(id){let p=db.products.find(x=>x.id===id);if(!p)return;let n=prompt('Enter stock adjustment: positive to add, negative to remove','1');if(n===null)return;n=Number(n);if(!Number.isInteger(n)||Number(p.qty)+n<0){alert('Invalid adjustment or not enough stock.');return}p.qty=Number(p.qty)+n;persist()}
+function editPrice(id){let p=db.products.find(x=>x.id===id);if(!p)return;let v=prompt('New selling price in ₹',String(p.price));if(v===null)return;v=Number(v);if(!Number.isFinite(v)||v<0){alert('Enter a valid price.');return}p.price=v;persist()}
+function delProduct(id){if(confirm('Delete this product variant?')){db.products=db.products.filter(p=>p.id!==id);persist()}}
+function renderSelect(){let s=$('productSelect');if(!s)return;let old=s.value;s.innerHTML='<option value="">Choose item…</option>'+db.products.filter(p=>Number(p.qty)>0).map(p=>`<option value="${esc(p.id)}">${esc(desc(p))} — ${cash(p.price)} (${Number(p.qty)} left)</option>`).join('');if(db.products.some(p=>p.id===old&&Number(p.qty)>0))s.value=old}
+function addCart(){
+ let p=db.products.find(x=>x.id===$('productSelect').value),qty=Number($('billQty').value);if(!p||!Number.isInteger(qty)||qty<1){alert('Choose an item and quantity.');return}
+ let c=cart.find(x=>x.id===p.id),already=c?c.qty:0;if(qty+already>Number(p.qty)){alert('Not enough stock.');return}if(c)c.qty+=qty;else cart.push({id:p.id,qty,price:Number(p.price),gst:Number(p.gst)||0});$('billQty').value=1;renderCart()
+}
+$('discount').addEventListener('input',renderCart);
+function totals(){let subtotal=cart.reduce((a,c)=>a+c.qty*c.price,0),discount=Math.max(0,Number($('discount').value)||0),taxable=Math.max(0,subtotal-discount),rawGst=cart.reduce((a,c)=>a+c.qty*c.price*c.gst/100,0),gst=subtotal?rawGst*taxable/subtotal:0;return{subtotal,discount,gst,total:taxable+gst}}
+function renderCart(){
+ if(!$('cartArea'))return;
+ $('cartArea').innerHTML=cart.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th><th>Amount</th><th></th></tr>'+cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return `<tr><td>${esc(p?desc(p):'Item')}</td><td>${c.qty}</td><td>${cash(c.qty*c.price)}</td><td><button class="danger" onclick="removeCart('${c.id}')">×</button></td></tr>`}).join('')+'</table></div>':'<div class="empty">Bill is empty.<br>Add an item above.</div>';
+ let t=totals();$('subtotal').textContent=cash(t.subtotal);$('gstAmount').textContent=cash(t.gst);$('discountAmount').textContent=cash(t.discount);$('total').textContent=cash(t.total)
+}
+function removeCart(id){cart=cart.filter(c=>c.id!==id);renderCart();hideUpiQr()}
+function showUpiQr(){
+ const upi=( $('upiId').value.trim() || db.settings.upiId || '' ).trim(),payee=( $('upiName').value.trim() || db.settings.upiName || db.settings.shopName || 'Menswear Shop').trim();
+ if(!upi){alert('Please enter your UPI ID in Settings and save it.');go('settings');return}
+ if(!upi.includes('@')||/\s/.test(upi)){alert('Please check the UPI ID format.');go('settings');return}
+ if(!cart.length){alert('Add items to the bill first.');return}
+ if(typeof QRCode==='undefined'){alert('QR library did not load. Connect to the internet and try again.');return}
+ const t=totals();const uri='upi://pay?pa='+encodeURIComponent(upi)+'&pn='+encodeURIComponent(payee)+'&am='+encodeURIComponent(t.total.toFixed(2))+'&cu=INR&tn='+encodeURIComponent('Menswear bill');
+ $('upiQrImage').innerHTML='';new QRCode($('upiQrImage'),{text:uri,width:220,height:220,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+ $('upiQrDetails').innerHTML='<b>'+esc(payee)+'</b><br>'+esc(upi)+'<br>Amount: <b>'+cash(t.total)+'</b>';$('upiQrBox').classList.add('show')
+}
+function hideUpiQr(){$('upiQrBox').classList.remove('show')}
+function saveBill(){
+ if(!cart.length){alert('Add an item first.');return}let t=totals();if(t.discount>t.subtotal){alert('Discount cannot exceed subtotal.');return}
+ for(let c of cart){let p=db.products.find(x=>x.id===c.id);if(!p||Number(p.qty)<c.qty){alert('Stock changed. Check the bill again.');return}}
+ let items=cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return{name:desc(p),sku:p.sku||'',qty:c.qty,price:c.price,gst:c.gst,line:c.qty*c.price}});
+ cart.forEach(c=>{let p=db.products.find(x=>x.id===c.id);if(p)p.qty=Number(p.qty)-c.qty});
+ let bill={id:'INV-'+Date.now().toString().slice(-8),date:new Date().toISOString(),customer:$('customer').value.trim(),payment:$('payment').value,items,subtotal:t.subtotal,discount:t.discount,gst:t.gst,total:t.total,shop:{...db.settings}};
+ db.bills.unshift(bill);cart=[];$('customer').value='';$('discount').value='0';hideUpiQr();persist();downloadBill(bill);go('history')
+}
+function downloadBill(b){
+ let rows=b.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cash(i.price)}</td><td>${cash(i.line)}</td></tr>`).join(''),date=new Date(b.date).toLocaleString('en-IN');
+ let w=window.open('','_blank');if(!w){alert('Allow pop-ups to print/download the bill. The bill has been saved in the app. Open Bills and choose Print / PDF.');return}
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(b.id)}</title><style>body{font:14px Arial;color:#111;padding:25px}h1{font-size:22px}p{margin:5px 0}.muted{color:#555;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border-bottom:1px solid #ddd;padding:9px;text-align:left} .totals{margin:20px 0 0 auto;max-width:280px}.totals div{display:flex;justify-content:space-between;padding:5px}button{padding:10px 14px;margin:10px 8px 0 0}@media print{.noprint{display:none}body{padding:0}}</style></head><body><h1>${esc(b.shop.shopName||'Menswear Shop')}</h1><p>${esc(b.shop.address||'')}</p><p>${esc(b.shop.phone||'')}${b.shop.gstin?' · GSTIN: '+esc(b.shop.gstin):''}</p><hr><h2>Invoice ${esc(b.id)}</h2><p>Date: ${esc(date)}</p><p>Customer: ${esc(b.customer||'Walk-in customer')}</p><p>Payment: ${esc(b.payment)}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Subtotal</span><b>${cash(b.subtotal)}</b></div><div><span>Discount</span><b>${cash(b.discount)}</b></div><div><span>Estimated GST</span><b>${cash(b.gst)}</b></div><div><strong>Total</strong><strong>${cash(b.total)}</strong></div></div><p class="muted">GST is an estimate. Verify tax details before issuing as an official tax invoice.</p><div class="noprint"><button onclick="window.print()">Print / Save as PDF</button><button onclick="window.close()">Close</button></div><script>setTimeout(()=>window.print(),400)<\/script></body></html>`);
+ w.document.close()
+}
+function renderBills(){
+ let el=$('billHistory');if(!el)return;
+ el.innerHTML=db.bills.length?'<table><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Total</th><th>Actions</th></tr>'+db.bills.map(b=>`<tr><td><b>${esc(b.id)}</b><br><span class="small">${esc(b.payment||'')}</span></td><td>${esc(new Date(b.date).toLocaleDateString('en-IN'))}</td><td>${esc(b.customer||'Walk-in')}</td><td>${cash(b.total)}</td><td><button class="secondary" onclick="reprintBill('${b.id}')">Print / PDF</button><br><button class="danger" style="margin-top:5px" onclick="deleteBill('${b.id}')">Delete record</button></td></tr>`).join('')+'</table>':'<div class="empty">No bills saved yet.</div>'
+}
+function reprintBill(id){let b=db.bills.find(x=>x.id===id);if(b)downloadBill(b)}
+function deleteBill(id){if(!confirm('Delete this bill record? This will not restore sold stock.'))return;db.bills=db.bills.filter(b=>b.id!==id);persist()}
+function csvDownload(filename,rows){let csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+function csvStock(){let rows=[['Name','Category','Brand','Size','Colour','SKU','Cost','Selling Price','Quantity','GST %'],...db.products.map(p=>[p.name,p.category,p.brand,p.size,p.colour,p.sku,p.cost,p.price,p.qty,p.gst])];csvDownload('menswear-stock.csv',rows)}
+function csvBills(){let rows=[['Invoice','Date','Customer','Payment','Subtotal','Discount','GST','Total'],...db.bills.map(b=>[b.id,b.date,b.customer,b.payment,b.subtotal,b.discount,b.gst,b.total])];csvDownload('menswear-bills.csv',rows)}
+function saveSettings(){
+ db.settings={...db.settings,shopName:$('shopName').value.trim()||'Menswear Shop',address:$('shopAddress').value.trim(),phone:$('shopPhone').value.trim(),gstin:$('shopGstin').value.trim(),upiId:$('upiId').value.trim(),upiName:$('upiName').value.trim()};
+ persist();alert('Settings saved.')
+}
+function backup(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='menswear-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+function restore(event){
+ const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();
+ reader.onload=()=>{try{let data=JSON.parse(reader.result);if(!data||!Array.isArray(data.products)||!Array.isArray(data.bills)||typeof data.settings!=='object')throw new Error('Invalid backup');if(!confirm('Restore this backup? Current app data will be replaced.'))return;db={products:data.products,bills:data.bills,settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:'',...(data.settings||{})}};persist();load();alert('Backup restored.')}catch(e){alert('Could not restore. Please select a valid backup JSON file.')}finally{event.target.value=''}};
+ reader.readAsText(file)
+}
+function wipe(){if(!confirm('Delete all products, bills and settings from this device? Download a backup first if needed.'))return;if(!confirm('This cannot be undone. Continue?'))return;db={products:[],bills:[],settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:''}};cart=[];localStorage.removeItem(KEY);load();go('home');alert('All app data deleted.')}
+load();
+</script>
+</body>
+</html>
