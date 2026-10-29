@@ -16,7 +16,7 @@ h2{font-size:17px;margin:0 0 13px}.grid{display:grid;grid-template-columns:repea
 input,select,textarea{width:100%;min-width:0;border:1px solid #ccd4e1;border-radius:9px;padding:11px;background:#fff;color:var(--ink);font:inherit}button{cursor:pointer;font:inherit}button.primary,button.secondary,button.danger{border:0;border-radius:9px;padding:11px 13px;font-weight:700}button.primary{background:var(--blue);color:white}button.secondary{background:#edf1f7;color:#25324a}button.danger{background:#fff0ef;color:var(--red)}.full{width:100%}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#f7f9fc;border:1px solid var(--line);border-radius:11px;padding:12px}.stat span{display:block;color:var(--muted);font-size:11px}.stat strong{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px}.small{font-size:12px;color:var(--muted)}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:11px;color:var(--muted)}.empty{text-align:center;color:var(--muted);padding:22px 8px}.total{font-size:20px;font-weight:800}.tag{font-size:11px;padding:3px 6px;border-radius:6px;background:#e8f7ef;color:var(--green)}
-@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:span 2}.grid{grid-template-columns:1fr}header{padding-top:14px}nav{top:65px}}
+@media(max-width:420px){.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:span 2}.grid{grid-template-columns:1fr}header{padding-top:14px}nav{top:65px}.row.responsive{align-items:flex-start;flex-direction:column}.row.actions{flex-wrap:wrap}}
 .qrbox{display:none;margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:12px;text-align:center;background:#fff}.qrbox.show{display:block}.qrimage{display:flex;justify-content:center;margin:12px auto}.qrimage img,.qrimage canvas{max-width:100%;height:auto}
 </style>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -36,7 +36,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <div class="card"><h2>Shop overview</h2><div class="stats"><div class="stat"><span>Stock variants</span><strong id="sVariants">0</strong></div><div class="stat"><span>Units in stock</span><strong id="sUnits">0</strong></div><div class="stat"><span>Today's sales</span><strong id="sSales">₹0.00</strong></div></div></div>
 <div class="card"><h2>Low stock (5 or fewer)</h2><div id="lowStock"></div></div>
 <div class="grid"><button class="primary" onclick="go('bill')">Create bill</button><button class="secondary" onclick="go('stock')">Update stock</button></div>
-<p class="small">Your records are saved in this browser on this device. Download backups regularly.</p>
+<p class="small">Records are saved in this browser on this device. Automatic local backups are created when data changes. Download a JSON backup regularly for protection against browser/device data loss.</p>
 </section>
 <section id="bill" class="panel">
 <div class="card"><h2>Create bill</h2>
@@ -61,7 +61,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <div class="field"><label>Cost price (₹) *</label><input id="pCost" type="number" min="0" step=".01" placeholder="300"></div><div class="field"><label>Selling price (₹) *</label><input id="pPrice" type="number" min="0" step=".01" placeholder="599"></div>
 <div class="field"><label>Quantity to add *</label><input id="pQty" type="number" min="0" step="1" placeholder="10"></div><div class="field"><label>GST rate (%)</label><select id="pGst"><option value="0">0%</option><option value="5">5%</option><option value="12" selected>12%</option><option value="18">18%</option><option value="28">28%</option></select></div>
 </div><button class="primary full" onclick="saveStock()">Save / update stock</button><p class="small">If the same product, brand, size and colour already exists, quantity is added to existing stock.</p></div>
-<div class="card"><div class="row"><h2 style="margin:0">Current stock</h2><button class="secondary" onclick="csvStock()">Export CSV</button></div><div class="field" style="margin-top:12px"><input id="searchStock" placeholder="Search stock…" oninput="renderStock()"></div><div id="stockTable" class="tablewrap"></div></div>
+<div class="card"><div class="row responsive"><h2 style="margin:0">Current stock</h2><div class="row actions"><button class="secondary" onclick="csvStock()">Export CSV</button><button class="primary" onclick="$('csvImportFile').click()">Import CSV</button><button class="secondary" onclick="downloadCsvTemplate()">CSV template</button><input id="csvImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importStockCsv(event)"></div></div><div class="field" style="margin-top:12px"><input id="searchStock" placeholder="Search stock…" oninput="renderStock()"></div><div id="stockTable" class="tablewrap"></div><p class="small">CSV import adds quantities to matching products. Matching uses SKU/barcode first, then product name + brand + size + colour. Use the CSV template to see supported columns.</p></div>
 </section>
 <section id="history" class="panel"><div class="card"><div class="row"><h2 style="margin:0">Saved bills</h2><button class="secondary" onclick="csvBills()">Export CSV</button></div><div id="billHistory" class="tablewrap" style="margin-top:12px"></div></div></section>
 <section id="settings" class="panel"><div class="card"><h2>Shop settings</h2>
@@ -69,22 +69,53 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <div class="field"><label>Phone (optional)</label><input id="shopPhone" placeholder="Phone number"></div><div class="field"><label>GSTIN (optional)</label><input id="shopGstin" placeholder="GSTIN"></div>
 <div class="field"><label>UPI ID / VPA (required for QR)</label><input id="upiId" placeholder="yourname@bank"></div><div class="field"><label>UPI payee name</label><input id="upiName" placeholder="Shop name as shown in UPI app"></div>
 <button class="primary full" onclick="saveSettings()">Save settings</button><div style="height:10px"></div><button class="secondary full" onclick="backup()">Download data backup (JSON)</button>
+<div style="height:8px"></div><button class="secondary full" onclick="downloadAutoBackup()">Download latest automatic backup (JSON)</button>
+<div class="card" style="background:#f7f9fc;margin-top:12px;margin-bottom:12px"><strong>Automatic backup</strong><p id="autoBackupStatus" class="small" style="margin-bottom:0">Checking backup status…</p></div>
 <div style="height:8px"></div><label class="secondary full" style="display:block;text-align:center;padding:11px;border-radius:9px;cursor:pointer"><input type="file" accept=".json,application/json" style="display:none" onchange="restore(event)">Restore backup JSON</label>
-<p class="small">Data stays in this browser on this device. Clearing website data may delete records. Back up regularly. GSTIN is not validated against the GST portal.</p><button class="danger full" onclick="wipe()">Delete all data</button>
+<p class="small">Automatic backup is stored in this browser on this device and updates after data changes. It cannot protect against clearing browser/site data, device loss, or storage failure. Download the JSON backup periodically and keep a copy elsewhere. GSTIN is not validated against the GST portal.</p><button class="danger full" onclick="wipe()">Delete all data</button>
 </div></section>
 </main>
 <script>
 'use strict';
 const KEY='menswear_webapp_v1';
+const AUTO_KEY='menswear_webapp_v1_auto_backup';
 let db={products:[],bills:[],settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:''}},cart=[];
 const $=id=>document.getElementById(id);
 const cash=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function load(){
- try{const saved=JSON.parse(localStorage.getItem(KEY));if(saved)db={...db,...saved,products:Array.isArray(saved.products)?saved.products:[],bills:Array.isArray(saved.bills)?saved.bills:[],settings:{...db.settings,...(saved.settings||{})}}}catch(e){console.warn('Could not load saved data',e)}
- $('shopName').value=db.settings.shopName||'Menswear Shop';$('shopAddress').value=db.settings.address||'';$('shopPhone').value=db.settings.phone||'';$('shopGstin').value=db.settings.gstin||'';$('upiId').value=db.settings.upiId||'';$('upiName').value=db.settings.upiName||'';renderAll()
+function validDb(data){return !!data&&Array.isArray(data.products)&&Array.isArray(data.bills)&&!!data.settings&&typeof data.settings==='object'&&!Array.isArray(data.settings)}
+function updateAutoBackupStatus(text){const el=$('autoBackupStatus');if(el)el.textContent=text}
+function saveAutomaticBackup(showStatus=true){
+ try{
+  const record={version:1,savedAt:new Date().toISOString(),data:db};
+  localStorage.setItem(AUTO_KEY,JSON.stringify(record));
+  if(showStatus)updateAutoBackupStatus('Saved locally at '+new Date(record.savedAt).toLocaleString('en-IN')+'.');
+  return true;
+ }catch(e){
+  updateAutoBackupStatus('Automatic backup could not be saved. Browser storage may be full. Download a JSON backup now.');
+  console.warn('Automatic backup failed:',e);return false;
+ }
 }
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));renderAll()}catch(e){alert('Could not save data. Check browser storage space/settings.');console.error(e)}}
+function load(){
+ let recovered=false;
+ try{
+  const raw=localStorage.getItem(KEY);
+  if(raw){const saved=JSON.parse(raw);if(validDb(saved))db={...db,...saved,products:saved.products,bills:saved.bills,settings:{...db.settings,...(saved.settings||{})}};else throw new Error('Invalid primary data');}
+  else throw new Error('No primary data');
+ }catch(e){
+  try{
+   const backupRecord=JSON.parse(localStorage.getItem(AUTO_KEY)||'null');
+   const candidate=backupRecord&&backupRecord.data?backupRecord.data:backupRecord;
+   if(validDb(candidate)){db={...db,...candidate,products:candidate.products,bills:candidate.bills,settings:{...db.settings,...(candidate.settings||{})}};recovered=true;localStorage.setItem(KEY,JSON.stringify(db));console.warn('Recovered app data from the automatic backup.');}
+  }catch(recoveryError){console.warn('Could not load saved or automatic backup data:',recoveryError)}
+ }
+ $('shopName').value=db.settings.shopName||'Menswear Shop';$('shopAddress').value=db.settings.address||'';$('shopPhone').value=db.settings.phone||'';$('shopGstin').value=db.settings.gstin||'';$('upiId').value=db.settings.upiId||'';$('upiName').value=db.settings.upiName||'';renderAll();
+ try{const r=JSON.parse(localStorage.getItem(AUTO_KEY)||'null');if(recovered)updateAutoBackupStatus('Recovered records from automatic backup. Check your products and bills.');else if(r&&r.savedAt)updateAutoBackupStatus('Latest local backup: '+new Date(r.savedAt).toLocaleString('en-IN')+'.');else updateAutoBackupStatus('No automatic backup yet. It will be created when data is saved.')}catch(e){updateAutoBackupStatus('Automatic backup status unavailable.')}
+}
+function persist(){
+ try{localStorage.setItem(KEY,JSON.stringify(db));saveAutomaticBackup();renderAll()}
+ catch(e){alert('Could not save data to browser storage. Download a backup and check available storage.');console.error(e)}
+}
 function go(id){document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));if(id==='bill')renderSelect();window.scrollTo({top:0,behavior:'auto'})}
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
 function desc(p){return [p.name,p.brand,p.size,p.colour].filter(Boolean).join(' · ')}
@@ -98,9 +129,14 @@ function saveStock(){
  let name=$('pName').value.trim(),cost=Number($('pCost').value),price=Number($('pPrice').value),qty=Number($('pQty').value);
  if(!name||$('pCost').value===''||$('pPrice').value===''||$('pQty').value===''||!Number.isFinite(cost)||!Number.isFinite(price)||cost<0||price<0||qty<0||!Number.isInteger(qty)){alert('Enter product name, valid prices and whole-number quantity.');return}
  let p={id:Date.now().toString(),name,category:$('pCategory').value,brand:$('pBrand').value.trim(),size:$('pSize').value,colour:$('pColour').value.trim(),sku:$('pSku').value.trim(),cost,price,qty,gst:Number($('pGst').value)};
- let old=db.products.find(x=>x.name.toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase()&&x.size===p.size&&String(x.colour||'').toLowerCase()===p.colour.toLowerCase());
- if(old){old.qty=Number(old.qty)+qty;old.cost=cost;old.price=price;old.gst=p.gst;if(p.sku)old.sku=p.sku}else db.products.push(p);
+ let old=findMatchingProduct(db.products,p);
+ if(old){old.qty=Number(old.qty)+qty;old.cost=cost;old.price=price;old.gst=p.gst;if(p.sku)old.sku=p.sku;if(p.category)old.category=p.category}else db.products.push(p);
  ['pName','pBrand','pColour','pSku','pCost','pPrice','pQty'].forEach(id=>$(id).value='');alert('Stock updated.');persist()
+}
+function findMatchingProduct(products,p){
+ const sku=String(p.sku||'').trim().toLowerCase();
+ if(sku){const bySku=products.find(x=>String(x.sku||'').trim().toLowerCase()===sku);if(bySku)return bySku}
+ return products.find(x=>String(x.name||'').trim().toLowerCase()===String(p.name||'').trim().toLowerCase()&&String(x.brand||'').trim().toLowerCase()===String(p.brand||'').trim().toLowerCase()&&String(x.size||'').trim().toLowerCase()===String(p.size||'').trim().toLowerCase()&&String(x.colour||'').trim().toLowerCase()===String(p.colour||'').trim().toLowerCase());
 }
 function renderStock(){
  if(!$('stockTable'))return;let q=($('searchStock')?.value||'').toLowerCase(),list=db.products.filter(p=>(desc(p)+' '+(p.sku||'')).toLowerCase().includes(q));
@@ -144,7 +180,7 @@ function saveBill(){
 function downloadBill(b){
  let rows=b.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cash(i.price)}</td><td>${cash(i.line)}</td></tr>`).join(''),date=new Date(b.date).toLocaleString('en-IN');
  let w=window.open('','_blank');if(!w){alert('Allow pop-ups to print/download the bill. The bill has been saved in the app. Open Bills and choose Print / PDF.');return}
- w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(b.id)}</title><style>body{font:14px Arial;color:#111;padding:25px}h1{font-size:22px}p{margin:5px 0}.muted{color:#555;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border-bottom:1px solid #ddd;padding:9px;text-align:left} .totals{margin:20px 0 0 auto;max-width:280px}.totals div{display:flex;justify-content:space-between;padding:5px}button{padding:10px 14px;margin:10px 8px 0 0}@media print{.noprint{display:none}body{padding:0}}</style></head><body><h1>${esc(b.shop.shopName||'Menswear Shop')}</h1><p>${esc(b.shop.address||'')}</p><p>${esc(b.shop.phone||'')}${b.shop.gstin?' · GSTIN: '+esc(b.shop.gstin):''}</p><hr><h2>Invoice ${esc(b.id)}</h2><p>Date: ${esc(date)}</p><p>Customer: ${esc(b.customer||'Walk-in customer')}</p><p>Payment: ${esc(b.payment)}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Subtotal</span><b>${cash(b.subtotal)}</b></div><div><span>Discount</span><b>${cash(b.discount)}</b></div><div><span>Estimated GST</span><b>${cash(b.gst)}</b></div><div><strong>Total</strong><strong>${cash(b.total)}</strong></div></div><p class="muted">GST is an estimate. Verify tax details before issuing as an official tax invoice.</p><div class="noprint"><button onclick="window.print()">Print / Save as PDF</button><button onclick="window.close()">Close</button></div><script>setTimeout(()=>window.print(),400)<\/script></body></html>`);
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(b.id)}</title><style>body{font:14px Arial;color:#111;padding:25px}h1{font-size:22px}p{margin:5px 0}.muted{color:#555;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border-bottom:1px solid #ddd;padding:9px;text-align:left}.totals{margin:20px 0 0 auto;max-width:280px}.totals div{display:flex;justify-content:space-between;padding:5px}button{padding:10px 14px;margin:10px 8px 0 0}@media print{.noprint{display:none}body{padding:0}}</style></head><body><h1>${esc(b.shop.shopName||'Menswear Shop')}</h1><p>${esc(b.shop.address||'')}</p><p>${esc(b.shop.phone||'')}${b.shop.gstin?' · GSTIN: '+esc(b.shop.gstin):''}</p><hr><h2>Invoice ${esc(b.id)}</h2><p>Date: ${esc(date)}</p><p>Customer: ${esc(b.customer||'Walk-in customer')}</p><p>Payment: ${esc(b.payment)}</p><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Subtotal</span><b>${cash(b.subtotal)}</b></div><div><span>Discount</span><b>${cash(b.discount)}</b></div><div><span>Estimated GST</span><b>${cash(b.gst)}</b></div><div><strong>Total</strong><strong>${cash(b.total)}</strong></div></div><p class="muted">GST is an estimate. Verify tax details before issuing as an official tax invoice.</p><div class="noprint"><button onclick="window.print()">Print / Save as PDF</button><button onclick="window.close()">Close</button></div><script>setTimeout(()=>window.print(),400)<\/script></body></html>`);
  w.document.close()
 }
 function renderBills(){
@@ -153,21 +189,82 @@ function renderBills(){
 }
 function reprintBill(id){let b=db.bills.find(x=>x.id===id);if(b)downloadBill(b)}
 function deleteBill(id){if(!confirm('Delete this bill record? This will not restore sold stock.'))return;db.bills=db.bills.filter(b=>b.id!==id);persist()}
-function csvDownload(filename,rows){let csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+function csvDownload(filename,rows){let csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function csvStock(){let rows=[['Name','Category','Brand','Size','Colour','SKU','Cost','Selling Price','Quantity','GST %'],...db.products.map(p=>[p.name,p.category,p.brand,p.size,p.colour,p.sku,p.cost,p.price,p.qty,p.gst])];csvDownload('menswear-stock.csv',rows)}
 function csvBills(){let rows=[['Invoice','Date','Customer','Payment','Subtotal','Discount','GST','Total'],...db.bills.map(b=>[b.id,b.date,b.customer,b.payment,b.subtotal,b.discount,b.gst,b.total])];csvDownload('menswear-bills.csv',rows)}
+function downloadCsvTemplate(){
+ const rows=[['Name','Category','Brand','Size','Colour','SKU','Cost','Selling Price','Quantity','GST %'],['Formal shirt','Shirt','Example Brand','M','Black','SH-BLK-M',300,599,10,12]];
+ csvDownload('menswear-stock-template.csv',rows)
+}
+function parseCSV(text){
+ text=String(text||'').replace(/^\uFEFF/,'');const rows=[];let row=[],field='',quoted=false;
+ for(let i=0;i<text.length;i++){
+  const ch=text[i];
+  if(quoted){if(ch==='"'&&text[i+1]==='"'){field+='"';i++}else if(ch==='"'){quoted=false}else field+=ch}
+  else if(ch==='"'){quoted=true}
+  else if(ch===','){row.push(field);field=''}
+  else if(ch==='\n'){row.push(field);rows.push(row);row=[];field=''}
+  else if(ch==='\r'){if(text[i+1]==='\n')i++;row.push(field);rows.push(row);row=[];field=''}
+  else field+=ch;
+ }
+ if(field.length||row.length){row.push(field);rows.push(row)}
+ return rows.filter(r=>r.some(v=>String(v).trim()!==''));
+}
+function normalizeHeader(value){return String(value||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'')}
+function importStockCsv(event){
+ const file=event.target.files&&event.target.files[0];if(!file)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   const rows=parseCSV(reader.result);if(rows.length<2)throw new Error('The CSV must contain a header and at least one product row.');
+   const headers=rows[0].map(normalizeHeader);
+   const aliases={name:['name','product','productname','item','itemname'],category:['category','type'],brand:['brand','manufacturer'],size:['size'],colour:['colour','color'],sku:['sku','barcode','barcodevalue','productcode'],cost:['cost','costprice','purchaseprice','buyingprice'],price:['sellingprice','price','saleprice','sellingrate'],qty:['quantity','qty','stock','stockquantity','units'],gst:['gst','gstrate','gstpercent','gstpercentage','tax','taxrate']};
+   const idx={};for(const key of Object.keys(aliases))idx[key]=headers.findIndex(h=>aliases[key].includes(h));
+   if(idx.name<0||idx.price<0||idx.qty<0)throw new Error('Required columns not found. Include Name, Selling Price and Quantity. Use the CSV template button for the correct format.');
+   const imported=[];const errors=[];
+   for(let r=1;r<rows.length;r++){
+    const cells=rows[r];const get=k=>idx[k]>=0?String(cells[idx[k]]??'').trim():'';
+    const name=get('name');if(!name){errors.push('Row '+(r+1)+': product name is empty.');continue}
+    const costRaw=get('cost'),priceRaw=get('price'),qtyRaw=get('qty'),gstRaw=get('gst');
+    const cost=costRaw===''?0:Number(costRaw),price=priceRaw===''?NaN:Number(priceRaw),qty=qtyRaw===''?NaN:Number(qtyRaw),gst=gstRaw===''?12:Number(gstRaw);
+    if(!Number.isFinite(cost)||cost<0||!Number.isFinite(price)||price<0||!Number.isInteger(qty)||qty<0||!Number.isFinite(gst)||gst<0||gst>100){errors.push('Row '+(r+1)+': invalid cost, selling price, quantity or GST.');continue}
+    imported.push({id:'csv-'+Date.now()+'-'+r,name,category:get('category')||'Other',brand:get('brand'),size:get('size')||'Free size',colour:get('colour'),sku:get('sku'),cost,price,qty,gst});
+   }
+   if(errors.length)throw new Error('No changes were made. Fix these CSV rows and import again:\n'+errors.slice(0,10).join('\n')+(errors.length>10?'\n…and '+(errors.length-10)+' more error(s).':''));
+   if(!imported.length)throw new Error('No valid products found in the CSV.');
+   if(!confirm('Import '+imported.length+' product row(s)? Quantities will be ADDED to matching products; new variants will be created. Prices, cost, GST and available details will be updated from the CSV.'))return;
+   const products=JSON.parse(JSON.stringify(db.products));let addedVariants=0,updatedVariants=0;
+   for(const p of imported){
+    const old=findMatchingProduct(products,p);
+    if(old){old.qty=Number(old.qty||0)+p.qty;old.name=p.name;old.cost=p.cost;old.price=p.price;old.gst=p.gst;old.category=p.category||old.category||'Other';if(p.sku)old.sku=p.sku;if(p.brand)old.brand=p.brand;if(p.size)old.size=p.size;if(p.colour)old.colour=p.colour;updatedVariants++}
+    else{p.id='P-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);products.push(p);addedVariants++}
+   }
+   db.products=products;persist();alert('CSV import complete.\nRows imported: '+imported.length+'\nNew variants: '+addedVariants+'\nExisting variants updated: '+updatedVariants+'\nImported quantities were added to existing stock.');
+  }catch(err){alert(err.message||'Could not import this CSV file. Check its format and try again.');}
+  finally{event.target.value=''}
+ };
+ reader.onerror=()=>{alert('Could not read the CSV file.');event.target.value=''};
+ reader.readAsText(file);
+}
 function saveSettings(){
  db.settings={...db.settings,shopName:$('shopName').value.trim()||'Menswear Shop',address:$('shopAddress').value.trim(),phone:$('shopPhone').value.trim(),gstin:$('shopGstin').value.trim(),upiId:$('upiId').value.trim(),upiName:$('upiName').value.trim()};
  persist();alert('Settings saved.')
 }
-function backup(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='menswear-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+function downloadJsonFile(filename,data){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function backup(){downloadJsonFile('menswear-backup-'+new Date().toISOString().slice(0,10)+'.json',db)}
+function downloadAutoBackup(){
+ try{const record=JSON.parse(localStorage.getItem(AUTO_KEY)||'null');const data=record&&record.data?record.data:db;if(!validDb(data)){alert('No valid automatic backup is available yet.');return}downloadJsonFile('menswear-auto-backup-'+new Date().toISOString().slice(0,10)+'.json',data)}catch(e){alert('Could not download the automatic backup. Use Download data backup instead.')}
+}
 function restore(event){
  const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();
- reader.onload=()=>{try{let data=JSON.parse(reader.result);if(!data||!Array.isArray(data.products)||!Array.isArray(data.bills)||typeof data.settings!=='object')throw new Error('Invalid backup');if(!confirm('Restore this backup? Current app data will be replaced.'))return;db={products:data.products,bills:data.bills,settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:'',...(data.settings||{})}};persist();load();alert('Backup restored.')}catch(e){alert('Could not restore. Please select a valid backup JSON file.')}finally{event.target.value=''}};
- reader.readAsText(file)
+ reader.onload=()=>{try{let data=JSON.parse(reader.result);if(!validDb(data))throw new Error('Invalid backup');if(!confirm('Restore this backup? Current app data will be replaced.'))return;db={products:data.products,bills:data.bills,settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:'',...(data.settings||{})}};persist();load();alert('Backup restored.')}catch(e){alert('Could not restore. Please select a valid backup JSON file.')}finally{event.target.value=''}};
+ reader.onerror=()=>{alert('Could not read the backup file.');event.target.value=''};reader.readAsText(file)
 }
-function wipe(){if(!confirm('Delete all products, bills and settings from this device? Download a backup first if needed.'))return;if(!confirm('This cannot be undone. Continue?'))return;db={products:[],bills:[],settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:''}};cart=[];localStorage.removeItem(KEY);load();go('home');alert('All app data deleted.')}
+function wipe(){if(!confirm('Delete all products, bills and settings from this device? Download a backup first if needed.'))return;if(!confirm('This cannot be undone. Continue?'))return;db={products:[],bills:[],settings:{shopName:'Menswear Shop',address:'',phone:'',gstin:'',upiId:'',upiName:''}};cart=[];localStorage.removeItem(KEY);localStorage.removeItem(AUTO_KEY);load();go('home');alert('All app data deleted.')}
+window.addEventListener('pagehide',()=>{if(db)saveAutomaticBackup(false)});
+setInterval(()=>{if(db)saveAutomaticBackup(true)},5*60*1000);
 load();
+saveAutomaticBackup(true);
 </script>
 </body>
 </html>
