@@ -16,6 +16,9 @@
 ## UPI QR
 Open Settings, enter your UPI ID and payee name, then save. Create a bill and choose **Show UPI payment QR**. The QR library is loaded from cdnjs, so internet is required for QR generation unless the library is bundled locally. Always verify the payment in your bank/UPI app; displaying or scanning a QR does not confirm that money was received.
 
+## Google review QR on bills
+In Settings, paste your shop's Google review link into **Google review link** and save. Newly printed bills, including reprints, will show a QR code customers can scan to open that link. The review link is saved with the shop settings and included in JSON backups. QR generation needs an internet connection to load the QR library.
+
 ## Data and backup
 Products and bills are stored in the browser on that device, not synced to the cloud. Use Settings → Download data backup (JSON) regularly. Clearing site data may erase records.
 
