@@ -22,5 +22,8 @@ In Settings, paste your shop's Google review link into **Google review link** an
 ## Data and backup
 Products and bills are stored in the browser on that device, not synced to the cloud. Use Settings → Download data backup (JSON) regularly. Clearing site data may erase records.
 
+## Import stock from CSV
+In Stock → Current stock, choose **Import CSV**. The required columns are `Name`, `Cost`, `Selling Price`, and `Quantity`; the exported stock CSV includes optional category, brand, size, colour, SKU, and GST columns. Rows matching an existing product, brand, size, and colour add their quantity to current stock and update the cost, selling price, and GST.
+
 ## Important
 This is a basic billing tool, not certified GST filing/invoicing software. Confirm tax rates and invoice requirements before issuing official tax invoices.
