@@ -1,4 +1,4 @@
-const CACHE_NAME = "menswear-offline-v6";
+const CACHE_NAME = "menswear-offline-v7";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 
 self.addEventListener("install", event => {
