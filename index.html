@@ -41,8 +41,9 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <section id="bill" class="panel">
 <div class="card"><h2>Create bill</h2>
 <div class="grid"><div class="field"><label>Customer name (optional)</label><input id="customer" placeholder="Customer name"></div><div class="field"><label>Payment method</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Other</option></select></div></div>
-<div class="field"><label>Choose product / size / colour</label><select id="productSelect"></select></div>
-<div class="grid"><div class="field"><label>Quantity</label><input id="billQty" type="number" min="1" step="1" value="1"></div><div class="field"><label>Discount (₹)</label><input id="discount" type="number" min="0" step=".01" value="0"></div></div>
+<div class="field"><label>Choose product</label><select id="productSelect"></select></div>
+<div class="grid"><div class="field"><label>Quantity</label><input id="billQty" type="number" min="1" step="1" value="1"></div><div class="field"><label>Selling price (₹) *</label><input id="billPrice" type="number" min="0" step=".01" placeholder="Enter price for this bill"></div></div>
+<div class="field"><label>Discount (₹)</label><input id="discount" type="number" min="0" step=".01" value="0"></div>
 <button class="primary full" onclick="addCart()">Add item to bill</button><div id="cartArea" style="margin-top:12px"></div>
 <div class="row" style="margin-top:12px"><span>Subtotal</span><strong id="subtotal">₹0.00</strong></div>
 <div class="row" style="margin-top:7px"><span>Estimated GST</span><strong id="gstAmount">₹0.00</strong></div>
@@ -54,13 +55,11 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <p class="small">This is a basic billing tool, not GST portal software. Confirm applicable tax rates and invoice requirements before using bills as official tax invoices.</p>
 </div></section>
 <section id="stock" class="panel">
-<div class="card"><h2>Add new product / size / colour</h2><div class="grid">
+<div class="card"><h2>Add new product</h2><div class="grid">
 <div class="field"><label>Product name *</label><input id="pName" placeholder="Formal shirt"></div><div class="field"><label>Category</label><select id="pCategory"><option>Shirt</option><option>T-shirt</option><option>Jeans</option><option>Trousers</option><option>Shorts</option><option>Jacket</option><option>Other</option></select></div>
-<div class="field"><label>Brand</label><input id="pBrand" placeholder="Brand name"></div><div class="field"><label>Size</label><select id="pSize"><option>XS</option><option>S</option><option selected>M</option><option>L</option><option>XL</option><option>XXL</option><option>XXXL</option><option>Free size</option></select></div>
-<div class="field"><label>Colour</label><input id="pColour" placeholder="Black"></div><div class="field"><label>SKU / barcode (optional)</label><input id="pSku" placeholder="SH-BLK-M"></div>
-<div class="field"><label>Cost price (₹) *</label><input id="pCost" type="number" min="0" step=".01" placeholder="300"></div><div class="field"><label>Selling price (₹) *</label><input id="pPrice" type="number" min="0" step=".01" placeholder="599"></div>
-<div class="field"><label>Quantity to add *</label><input id="pQty" type="number" min="0" step="1" placeholder="10"></div><div class="field"><label>GST rate (%)</label><select id="pGst"><option value="0">0%</option><option value="5">5%</option><option value="12" selected>12%</option><option value="18">18%</option><option value="28">28%</option></select></div>
-</div><button class="primary full" onclick="saveStock()">Save / update stock</button><p class="small">If the same product, brand, size and colour already exists, quantity is added to existing stock.</p></div>
+<div class="field"><label>Brand</label><input id="pBrand" placeholder="Brand name"></div>
+<div class="field"><label>Cost price (₹) *</label><input id="pCost" type="number" min="0" step=".01" placeholder="300"></div><div class="field"><label>Quantity to add *</label><input id="pQty" type="number" min="0" step="1" placeholder="10"></div>
+</div><button class="primary full" onclick="saveStock()">Save / update stock</button><p class="small">If the same product and brand already exists, the quantity is added to its stock.</p></div>
 <div class="card"><div class="row"><h2 style="margin:0">Current stock</h2><div style="display:flex;gap:7px"><button class="secondary" onclick="document.getElementById('stockCsvFile').click()">Import CSV</button><button class="secondary" onclick="csvStock()">Export CSV</button><input id="stockCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importStock(event)"></div></div><div class="field" style="margin-top:12px"><input id="searchStock" placeholder="Search stock…" oninput="renderStock()"></div><div id="stockTable" class="tablewrap"></div></div>
 </section>
 <section id="history" class="panel"><div class="card"><div class="row"><h2 style="margin:0">Saved bills</h2><button class="secondary" onclick="csvBills()">Export CSV</button></div><div id="billHistory" class="tablewrap" style="margin-top:12px"></div></div></section>
@@ -88,7 +87,7 @@ function load(){
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));renderAll()}catch(e){alert('Could not save data. Check browser storage space/settings.');console.error(e)}}
 function go(id){document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));if(id==='bill')renderSelect();window.scrollTo({top:0,behavior:'auto'})}
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
-function desc(p){return [p.name,p.brand,p.size,p.colour].filter(Boolean).join(' · ')}
+function desc(p){return [p.name,p.brand].filter(Boolean).join(' · ')}
 function renderAll(){renderHome();renderStock();renderSelect();renderCart();renderBills()}
 function renderHome(){
  $('headerShop').textContent=db.settings.shopName||'Menswear Shop';$('sVariants').textContent=db.products.length;$('sUnits').textContent=db.products.reduce((n,p)=>n+(Number(p.qty)||0),0);
@@ -96,33 +95,34 @@ function renderHome(){
  let low=db.products.filter(p=>Number(p.qty)<=5);$('lowStock').innerHTML=low.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th></tr>'+low.map(p=>`<tr><td>${esc(desc(p))}</td><td>${Number(p.qty)||0}</td></tr>`).join('')+'</table></div>':'<div class="empty">No low-stock items.</div>'
 }
 function saveStock(){
- let name=$('pName').value.trim(),cost=Number($('pCost').value),price=Number($('pPrice').value),qty=Number($('pQty').value);
- if(!name||$('pCost').value===''||$('pPrice').value===''||$('pQty').value===''||!Number.isFinite(cost)||!Number.isFinite(price)||cost<0||price<0||qty<0||!Number.isInteger(qty)){alert('Enter product name, valid prices and whole-number quantity.');return}
- let p={id:Date.now().toString(),name,category:$('pCategory').value,brand:$('pBrand').value.trim(),size:$('pSize').value,colour:$('pColour').value.trim(),sku:$('pSku').value.trim(),cost,price,qty,gst:Number($('pGst').value)};
- let old=db.products.find(x=>x.name.toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase()&&x.size===p.size&&String(x.colour||'').toLowerCase()===p.colour.toLowerCase());
- if(old){old.qty=Number(old.qty)+qty;old.cost=cost;old.price=price;old.gst=p.gst;if(p.sku)old.sku=p.sku}else db.products.push(p);
- ['pName','pBrand','pColour','pSku','pCost','pPrice','pQty'].forEach(id=>$(id).value='');alert('Stock updated.');persist()
+ let name=$('pName').value.trim(),cost=Number($('pCost').value),qty=Number($('pQty').value);
+ if(!name||$('pCost').value===''||$('pQty').value===''||!Number.isFinite(cost)||cost<0||qty<0||!Number.isInteger(qty)){alert('Enter a product name, valid cost price and whole-number quantity.');return}
+ let p={id:Date.now().toString(),name,category:$('pCategory').value,brand:$('pBrand').value.trim(),cost,qty,gst:0};
+ let old=db.products.find(x=>x.name.toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase());
+ if(old){old.qty=Number(old.qty)+qty;old.cost=cost;old.category=p.category}else db.products.push(p);
+ ['pName','pBrand','pCost','pQty'].forEach(id=>$(id).value='');alert('Stock updated.');persist()
 }
 function renderStock(){
- if(!$('stockTable'))return;let q=($('searchStock')?.value||'').toLowerCase(),list=db.products.filter(p=>(desc(p)+' '+(p.sku||'')).toLowerCase().includes(q));
- $('stockTable').innerHTML=list.length?'<table><tr><th>Product</th><th>Size/colour</th><th>Price</th><th>Qty</th><th>Action</th></tr>'+list.map(p=>`<tr><td><b>${esc(p.name)}</b><br><span class="small">${esc(p.brand||p.category||'')}${p.sku?' · '+esc(p.sku):''}</span></td><td>${esc(p.size||'')} / ${esc(p.colour||'—')}</td><td>${cash(p.price)}<br><span class="small">GST ${Number(p.gst)||0}%</span></td><td>${Number(p.qty)||0}</td><td><button class="secondary" onclick="changeQty('${p.id}')">± Qty</button><br><button class="secondary" style="margin-top:5px" onclick="editPrice('${p.id}')">Edit price</button><br><button class="danger" style="margin-top:5px" onclick="delProduct('${p.id}')">Delete</button></td></tr>`).join('')+'</table>':'<div class="empty">No stock added yet.</div>'
+ if(!$('stockTable'))return;let q=($('searchStock')?.value||'').toLowerCase(),list=db.products.filter(p=>(desc(p)+' '+(p.category||'')).toLowerCase().includes(q));
+ $('stockTable').innerHTML=list.length?'<table><tr><th>Product</th><th>Category</th><th>Cost price</th><th>Qty</th><th>Action</th></tr>'+list.map(p=>`<tr><td><b>${esc(p.name)}</b><br><span class="small">${esc(p.brand||'')}</span></td><td>${esc(p.category||'Other')}</td><td>${cash(p.cost)}</td><td>${Number(p.qty)||0}</td><td><button class="secondary" onclick="changeQty('${p.id}')">± Qty</button><br><button class="danger" style="margin-top:5px" onclick="delProduct('${p.id}')">Delete</button></td></tr>`).join('')+'</table>':'<div class="empty">No stock added yet.</div>'
 }
 function changeQty(id){let p=db.products.find(x=>x.id===id);if(!p)return;let n=prompt('Enter stock adjustment: positive to add, negative to remove','1');if(n===null)return;n=Number(n);if(!Number.isInteger(n)||Number(p.qty)+n<0){alert('Invalid adjustment or not enough stock.');return}p.qty=Number(p.qty)+n;persist()}
-function editPrice(id){let p=db.products.find(x=>x.id===id);if(!p)return;let v=prompt('New selling price in ₹',String(p.price));if(v===null)return;v=Number(v);if(!Number.isFinite(v)||v<0){alert('Enter a valid price.');return}p.price=v;persist()}
 function delProduct(id){if(confirm('Delete this product variant?')){db.products=db.products.filter(p=>p.id!==id);persist()}}
-function renderSelect(){let s=$('productSelect');if(!s)return;let old=s.value;s.innerHTML='<option value="">Choose item…</option>'+db.products.filter(p=>Number(p.qty)>0).map(p=>`<option value="${esc(p.id)}">${esc(desc(p))} — ${cash(p.price)} (${Number(p.qty)} left)</option>`).join('');if(db.products.some(p=>p.id===old&&Number(p.qty)>0))s.value=old}
+function renderSelect(){let s=$('productSelect');if(!s)return;let old=s.value;s.innerHTML='<option value="">Choose item…</option>'+db.products.filter(p=>Number(p.qty)>0).map(p=>`<option value="${esc(p.id)}">${esc(desc(p))} (${Number(p.qty)} left)</option>`).join('');if(db.products.some(p=>p.id===old&&Number(p.qty)>0))s.value=old}
+function selectProduct(){let p=db.products.find(x=>x.id===$('productSelect').value);$('billPrice').value=p&&Number.isFinite(Number(p.price))&&p.price!==''?p.price:''}
+$('productSelect').addEventListener('change',selectProduct);
 function addCart(){
- let p=db.products.find(x=>x.id===$('productSelect').value),qty=Number($('billQty').value);if(!p||!Number.isInteger(qty)||qty<1){alert('Choose an item and quantity.');return}
- let c=cart.find(x=>x.id===p.id),already=c?c.qty:0;if(qty+already>Number(p.qty)){alert('Not enough stock.');return}if(c)c.qty+=qty;else cart.push({id:p.id,qty,price:Number(p.price),gst:Number(p.gst)||0});$('billQty').value=1;renderCart()
+ let p=db.products.find(x=>x.id===$('productSelect').value),qty=Number($('billQty').value),price=Number($('billPrice').value);if(!p||!Number.isInteger(qty)||qty<1){alert('Choose an item and enter a valid quantity.');return}if($('billPrice').value===''||!Number.isFinite(price)||price<0){alert('Enter a valid selling price for this bill.');return}
+ let already=cart.filter(x=>x.id===p.id).reduce((sum,x)=>sum+x.qty,0);if(qty+already>Number(p.qty)){alert('Not enough stock.');return}let c=cart.find(x=>x.id===p.id&&x.price===price);if(c)c.qty+=qty;else cart.push({id:p.id,qty,price,gst:Number(p.gst)||0});$('billQty').value=1;renderCart()
 }
 $('discount').addEventListener('input',renderCart);
 function totals(){let subtotal=cart.reduce((a,c)=>a+c.qty*c.price,0),discount=Math.max(0,Number($('discount').value)||0),taxable=Math.max(0,subtotal-discount),rawGst=cart.reduce((a,c)=>a+c.qty*c.price*c.gst/100,0),gst=subtotal?rawGst*taxable/subtotal:0;return{subtotal,discount,gst,total:taxable+gst}}
 function renderCart(){
  if(!$('cartArea'))return;
- $('cartArea').innerHTML=cart.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th><th>Amount</th><th></th></tr>'+cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return `<tr><td>${esc(p?desc(p):'Item')}</td><td>${c.qty}</td><td>${cash(c.qty*c.price)}</td><td><button class="danger" onclick="removeCart('${c.id}')">×</button></td></tr>`}).join('')+'</table></div>':'<div class="empty">Bill is empty.<br>Add an item above.</div>';
+ $('cartArea').innerHTML=cart.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th><th></th></tr>'+cart.map((c,index)=>{let p=db.products.find(x=>x.id===c.id);return `<tr><td>${esc(p?desc(p):'Item')}</td><td>${c.qty}</td><td>${cash(c.price)}</td><td>${cash(c.qty*c.price)}</td><td><button class="danger" onclick="removeCart(${index})">×</button></td></tr>`}).join('')+'</table></div>':'<div class="empty">Bill is empty.<br>Add an item above.</div>';
  let t=totals();$('subtotal').textContent=cash(t.subtotal);$('gstAmount').textContent=cash(t.gst);$('discountAmount').textContent=cash(t.discount);$('total').textContent=cash(t.total)
 }
-function removeCart(id){cart=cart.filter(c=>c.id!==id);renderCart();hideUpiQr()}
+function removeCart(index){cart.splice(index,1);renderCart();hideUpiQr()}
 function showUpiQr(){
  const upi=( $('upiId').value.trim() || db.settings.upiId || '' ).trim(),payee=( $('upiName').value.trim() || db.settings.upiName || db.settings.shopName || 'Menswear Shop').trim();
  if(!upi){alert('Please enter your UPI ID in Settings and save it.');go('settings');return}
@@ -140,7 +140,7 @@ function saveBill(){
  let items=cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return{name:desc(p),sku:p.sku||'',qty:c.qty,price:c.price,gst:c.gst,line:c.qty*c.price}});
  cart.forEach(c=>{let p=db.products.find(x=>x.id===c.id);if(p)p.qty=Number(p.qty)-c.qty});
  let bill={id:'INV-'+Date.now().toString().slice(-8),date:new Date().toISOString(),customer:$('customer').value.trim(),payment:$('payment').value,items,subtotal:t.subtotal,discount:t.discount,gst:t.gst,total:t.total,shop:{...db.settings}};
- db.bills.unshift(bill);cart=[];$('customer').value='';$('discount').value='0';hideUpiQr();persist();downloadBill(bill);go('history')
+ db.bills.unshift(bill);cart=[];$('customer').value='';$('billPrice').value='';$('discount').value='0';hideUpiQr();persist();downloadBill(bill);go('history')
 }
 function downloadBill(b){
  let rows=b.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cash(i.line)}</td></tr>`).join(''),date=new Date(b.date).toLocaleString('en-IN'),shop=b.shop||db.settings;
@@ -158,7 +158,7 @@ function renderBills(){
 function reprintBill(id){let b=db.bills.find(x=>x.id===id);if(b)downloadBill(b)}
 function deleteBill(id){if(!confirm('Delete this bill record? This will not restore sold stock.'))return;db.bills=db.bills.filter(b=>b.id!==id);persist()}
 function csvDownload(filename,rows){let csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n'),blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
-function csvStock(){let rows=[['Name','Category','Brand','Size','Colour','SKU','Cost','Selling Price','Quantity','GST %'],...db.products.map(p=>[p.name,p.category,p.brand,p.size,p.colour,p.sku,p.cost,p.price,p.qty,p.gst])];csvDownload('menswear-stock.csv',rows)}
+function csvStock(){let rows=[['Name','Category','Brand','Cost','Quantity'],...db.products.map(p=>[p.name,p.category,p.brand,p.cost,p.qty])];csvDownload('menswear-stock.csv',rows)}
 function parseCsv(text){
  let rows=[],row=[],cell='',quoted=false;
  text=String(text||'').replace(/^\uFEFF/,'');
@@ -183,17 +183,17 @@ function importStock(event){
    const key=s=>String(s||'').trim().toLowerCase();
    const headers=rows[0].map(key),findHeader=(...names)=>names.map(n=>headers.indexOf(key(n))).find(i=>i>=0);
    const col={name:findHeader('Name','Product'),category:findHeader('Category'),brand:findHeader('Brand'),size:findHeader('Size'),colour:findHeader('Colour','Color'),sku:findHeader('SKU','SKU / barcode'),cost:findHeader('Cost','Cost Price'),price:findHeader('Selling Price','Price'),qty:findHeader('Quantity','Qty'),gst:findHeader('GST %','GST','GST Rate')};
-   if(col.name===undefined||col.cost===undefined||col.price===undefined||col.qty===undefined)throw new Error('Required columns: Name, Cost, Selling Price, Quantity. You can use Export CSV for a sample format.');
+   if(col.name===undefined||col.cost===undefined||col.qty===undefined)throw new Error('Required columns: Name, Cost, Quantity. You can use Export CSV for a sample format.');
    const number=v=>{const n=Number(String(v??'').replace(/[₹,\s]/g,''));return Number.isFinite(n)?n:NaN};
    const entries=[],errors=[];
    rows.slice(1).forEach((r,i)=>{
-    const rowNum=i+2,at=index=>index===undefined?'':String(r[index]??'').trim(),name=at(col.name),cost=number(at(col.cost)),price=number(at(col.price)),qty=number(at(col.qty)),gst=col.gst===undefined||!at(col.gst)?12:number(at(col.gst));
-    if(!name||!Number.isFinite(cost)||cost<0||!Number.isFinite(price)||price<0||!Number.isInteger(qty)||qty<0||!Number.isFinite(gst)||gst<0||gst>100){errors.push(rowNum);return}
-    entries.push({name,category:at(col.category)||'Other',brand:at(col.brand),size:at(col.size)||'Free size',colour:at(col.colour),sku:at(col.sku),cost,price,qty,gst});
+    const rowNum=i+2,at=index=>index===undefined?'':String(r[index]??'').trim(),name=at(col.name),cost=number(at(col.cost)),price=col.price===undefined||!at(col.price)?undefined:number(at(col.price)),qty=number(at(col.qty)),gst=col.gst===undefined||!at(col.gst)?0:number(at(col.gst));
+    if(!name||!Number.isFinite(cost)||cost<0||(price!==undefined&&(!Number.isFinite(price)||price<0))||!Number.isInteger(qty)||qty<0||!Number.isFinite(gst)||gst<0||gst>100){errors.push(rowNum);return}
+    entries.push({name,category:at(col.category)||'Other',brand:at(col.brand),size:at(col.size),colour:at(col.colour),sku:at(col.sku),cost,price,qty,gst});
    });
    if(errors.length)throw new Error('Invalid data in row(s) '+errors.join(', ')+'. No stock was imported. Check prices, quantities, GST rates, and product names.');
    if(!entries.length)throw new Error('No valid stock rows found.');
-   entries.forEach(p=>{const old=db.products.find(x=>String(x.name||'').toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase()&&String(x.size||'')===p.size&&String(x.colour||'').toLowerCase()===p.colour.toLowerCase());if(old){old.qty=Number(old.qty||0)+p.qty;old.cost=p.cost;old.price=p.price;old.gst=p.gst;if(p.sku)old.sku=p.sku}else db.products.push({...p,id:Date.now().toString()+Math.random().toString(36).slice(2,7)})});
+   entries.forEach(p=>{const old=db.products.find(x=>String(x.name||'').toLowerCase()===p.name.toLowerCase()&&String(x.brand||'').toLowerCase()===p.brand.toLowerCase());if(old){old.qty=Number(old.qty||0)+p.qty;old.cost=p.cost;old.category=p.category;if(p.price!==undefined)old.price=p.price;old.gst=p.gst}else db.products.push({...p,id:Date.now().toString()+Math.random().toString(36).slice(2,7)})});
    persist();alert('Imported '+entries.length+' stock row(s). Matching product variants had their quantity added.');
   }catch(e){alert(e.message||'Could not import this CSV. Check the file format and try again.')}finally{event.target.value=''}
  };
