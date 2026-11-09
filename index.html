@@ -42,6 +42,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 <div class="card"><h2>Create bill</h2>
 <div class="grid"><div class="field"><label>Customer name (optional)</label><input id="customer" placeholder="Customer name"></div><div class="field"><label>Payment method</label><select id="payment"><option>Cash</option><option>UPI</option><option>Card</option><option>Other</option></select></div></div>
 <div class="field"><label>Choose product</label><select id="productSelect"></select></div>
+<div class="field"><label>Size</label><select id="billSize"><option value="">Choose size…</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>XXXL</option><option>Free size</option><option>Whole size</option><option value="Not applicable">Not applicable</option></select><span class="small">Recorded with each bill item to track which sizes sell most.</span></div>
 <div class="grid"><div class="field"><label>Quantity</label><input id="billQty" type="number" min="1" step="1" value="1"></div><div class="field"><label>Selling price (₹) *</label><input id="billPrice" type="number" min="0" step=".01" placeholder="Enter price for this bill"></div></div>
 <div class="field"><label>Discount (₹)</label><input id="discount" type="number" min="0" step=".01" value="0"></div>
 <button class="primary full" onclick="addCart()">Add item to bill</button><div id="cartArea" style="margin-top:12px"></div>
@@ -62,7 +63,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
 </div><button class="primary full" onclick="saveStock()">Save / update stock</button><p class="small">If the same product and brand already exists, the quantity is added to its stock.</p></div>
 <div class="card"><div class="row"><h2 style="margin:0">Current stock</h2><div style="display:flex;gap:7px"><button class="secondary" onclick="document.getElementById('stockCsvFile').click()">Import CSV</button><button class="secondary" onclick="csvStock()">Export CSV</button><input id="stockCsvFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importStock(event)"></div></div><div class="field" style="margin-top:12px"><input id="searchStock" placeholder="Search stock…" oninput="renderStock()"></div><div id="stockTable" class="tablewrap"></div></div>
 </section>
-<section id="history" class="panel"><div class="card"><div class="row"><h2 style="margin:0">Saved bills</h2><button class="secondary" onclick="csvBills()">Export CSV</button></div><div id="billHistory" class="tablewrap" style="margin-top:12px"></div></div></section>
+<section id="history" class="panel"><div class="card"><div class="row"><h2 style="margin:0">Saved bills</h2><button class="secondary" onclick="csvBills()">Export CSV</button></div><h3 style="margin:18px 0 8px">Units sold by size</h3><div id="sizeSales"></div><div id="billHistory" class="tablewrap" style="margin-top:12px"></div></div></section>
 <section id="settings" class="panel"><div class="card"><h2>Shop settings</h2>
 <div class="field"><label>Shop name</label><input id="shopName" value="Menswear Shop"></div><div class="field"><label>Address (optional)</label><textarea id="shopAddress" rows="2" placeholder="Shop address"></textarea></div>
 <div class="field"><label>Phone (optional)</label><input id="shopPhone" placeholder="Phone number"></div><div class="field"><label>GSTIN (optional)</label><input id="shopGstin" placeholder="GSTIN"></div>
@@ -112,14 +113,14 @@ function renderSelect(){let s=$('productSelect');if(!s)return;let old=s.value;s.
 function selectProduct(){let p=db.products.find(x=>x.id===$('productSelect').value);$('billPrice').value=p&&Number.isFinite(Number(p.price))&&p.price!==''?p.price:''}
 $('productSelect').addEventListener('change',selectProduct);
 function addCart(){
- let p=db.products.find(x=>x.id===$('productSelect').value),qty=Number($('billQty').value),price=Number($('billPrice').value);if(!p||!Number.isInteger(qty)||qty<1){alert('Choose an item and enter a valid quantity.');return}if($('billPrice').value===''||!Number.isFinite(price)||price<0){alert('Enter a valid selling price for this bill.');return}
- let already=cart.filter(x=>x.id===p.id).reduce((sum,x)=>sum+x.qty,0);if(qty+already>Number(p.qty)){alert('Not enough stock.');return}let c=cart.find(x=>x.id===p.id&&x.price===price);if(c)c.qty+=qty;else cart.push({id:p.id,qty,price,gst:Number(p.gst)||0});$('billQty').value=1;renderCart()
+ let p=db.products.find(x=>x.id===$('productSelect').value),qty=Number($('billQty').value),price=Number($('billPrice').value),size=$('billSize').value;if(!p||!Number.isInteger(qty)||qty<1){alert('Choose an item and enter a valid quantity.');return}if(!size){alert('Choose a size or select Not applicable.');return}if($('billPrice').value===''||!Number.isFinite(price)||price<0){alert('Enter a valid selling price for this bill.');return}
+ let already=cart.filter(x=>x.id===p.id).reduce((sum,x)=>sum+x.qty,0);if(qty+already>Number(p.qty)){alert('Not enough stock.');return}let c=cart.find(x=>x.id===p.id&&x.price===price&&x.size===size);if(c)c.qty+=qty;else cart.push({id:p.id,qty,price,gst:Number(p.gst)||0,size});$('billQty').value=1;renderCart()
 }
 $('discount').addEventListener('input',renderCart);
 function totals(){let subtotal=cart.reduce((a,c)=>a+c.qty*c.price,0),discount=Math.max(0,Number($('discount').value)||0),taxable=Math.max(0,subtotal-discount),rawGst=cart.reduce((a,c)=>a+c.qty*c.price*c.gst/100,0),gst=subtotal?rawGst*taxable/subtotal:0;return{subtotal,discount,gst,total:taxable+gst}}
 function renderCart(){
  if(!$('cartArea'))return;
- $('cartArea').innerHTML=cart.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th><th></th></tr>'+cart.map((c,index)=>{let p=db.products.find(x=>x.id===c.id);return `<tr><td>${esc(p?desc(p):'Item')}</td><td>${c.qty}</td><td>${cash(c.price)}</td><td>${cash(c.qty*c.price)}</td><td><button class="danger" onclick="removeCart(${index})">×</button></td></tr>`}).join('')+'</table></div>':'<div class="empty">Bill is empty.<br>Add an item above.</div>';
+ $('cartArea').innerHTML=cart.length?'<div class="tablewrap"><table><tr><th>Item</th><th>Size</th><th>Qty</th><th>Rate</th><th>Amount</th><th></th></tr>'+cart.map((c,index)=>{let p=db.products.find(x=>x.id===c.id);return `<tr><td>${esc(p?desc(p):'Item')}</td><td>${esc(c.size||'')}</td><td>${c.qty}</td><td>${cash(c.price)}</td><td>${cash(c.qty*c.price)}</td><td><button class="danger" onclick="removeCart(${index})">×</button></td></tr>`}).join('')+'</table></div>':'<div class="empty">Bill is empty.<br>Add an item above.</div>';
  let t=totals();$('subtotal').textContent=cash(t.subtotal);$('gstAmount').textContent=cash(t.gst);$('discountAmount').textContent=cash(t.discount);$('total').textContent=cash(t.total)
 }
 function removeCart(index){cart.splice(index,1);renderCart();hideUpiQr()}
@@ -137,10 +138,10 @@ function hideUpiQr(){$('upiQrBox').classList.remove('show')}
 function saveBill(){
  if(!cart.length){alert('Add an item first.');return}let t=totals();if(t.discount>t.subtotal){alert('Discount cannot exceed subtotal.');return}
  for(let c of cart){let p=db.products.find(x=>x.id===c.id);if(!p||Number(p.qty)<c.qty){alert('Stock changed. Check the bill again.');return}}
- let items=cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return{name:desc(p),sku:p.sku||'',qty:c.qty,price:c.price,gst:c.gst,line:c.qty*c.price}});
+ let items=cart.map(c=>{let p=db.products.find(x=>x.id===c.id);return{name:desc(p),sku:p.sku||'',size:c.size,qty:c.qty,price:c.price,gst:c.gst,line:c.qty*c.price}});
  cart.forEach(c=>{let p=db.products.find(x=>x.id===c.id);if(p)p.qty=Number(p.qty)-c.qty});
  let bill={id:'INV-'+Date.now().toString().slice(-8),date:new Date().toISOString(),customer:$('customer').value.trim(),payment:$('payment').value,items,subtotal:t.subtotal,discount:t.discount,gst:t.gst,total:t.total,shop:{...db.settings}};
- db.bills.unshift(bill);cart=[];$('customer').value='';$('billPrice').value='';$('discount').value='0';hideUpiQr();persist();downloadBill(bill);go('history')
+ db.bills.unshift(bill);cart=[];$('customer').value='';$('billPrice').value='';$('billSize').value='';$('discount').value='0';hideUpiQr();persist();downloadBill(bill);go('history')
 }
 function downloadBill(b){
  let rows=b.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cash(i.line)}</td></tr>`).join(''),date=new Date(b.date).toLocaleString('en-IN'),shop=b.shop||db.settings;
@@ -152,7 +153,7 @@ function downloadBill(b){
  w.document.close()
 }
 function renderBills(){
- let el=$('billHistory');if(!el)return;
+ let el=$('billHistory');if(!el)return;let counts={};db.bills.forEach(b=>(b.items||[]).forEach(i=>{if(i.size&&i.size!=='Not applicable')counts[i.size]=(counts[i.size]||0)+(Number(i.qty)||0)}));let ranked=Object.entries(counts).sort((a,b)=>b[1]-a[1]);$('sizeSales').innerHTML=ranked.length?'<div class="tablewrap"><table><tr><th>Size</th><th>Units sold</th></tr>'+ranked.map(([size,qty])=>`<tr><td>${esc(size)}</td><td>${qty}</td></tr>`).join('')+'</table></div>':'<div class="empty">Size sales will appear after you save bills with sizes. Older bills are not included.</div>';
  el.innerHTML=db.bills.length?'<table><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Total</th><th>Actions</th></tr>'+db.bills.map(b=>`<tr><td><b>${esc(b.id)}</b><br><span class="small">${esc(b.payment||'')}</span></td><td>${esc(new Date(b.date).toLocaleDateString('en-IN'))}</td><td>${esc(b.customer||'Walk-in')}</td><td>${cash(b.total)}</td><td><button class="secondary" onclick="reprintBill('${b.id}')">Print / PDF</button><br><button class="danger" style="margin-top:5px" onclick="deleteBill('${b.id}')">Delete record</button></td></tr>`).join('')+'</table>':'<div class="empty">No bills saved yet.</div>'
 }
 function reprintBill(id){let b=db.bills.find(x=>x.id===id);if(b)downloadBill(b)}
